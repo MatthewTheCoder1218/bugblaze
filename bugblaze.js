@@ -12,6 +12,7 @@ import path from 'path';
 import os from 'os';
 import { handleConfigCommand } from './commands/config.js';
 import { checkIfPremium } from './utils/premium.js';
+import { globby } from 'globby';
 
 const program = new Command();
 const configPath = path.join(process.cwd(), '.bugblazerc.json'); // Fixed to match config.js
@@ -403,6 +404,65 @@ async function generateRefactorSuggestions(filePath) {
   }
 }
 
+async function scanHealth() {
+  console.log(chalk.cyan('🔍 Scanning codebase for health issues...'));
+
+  const premiumStatus = await checkAndUpdatePremiumStatus();
+  const groq = getGroqClient();
+  if (!groq) {
+    console.log(chalk.red('❌ API key not found.'));
+    console.log(chalk.yellow('Please set your API key using:'));
+    console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
+    return;
+  }
+
+  if (!premiumStatus.isPremium) {
+    console.log(chalk.yellow('💎 Code health scanning is a premium feature.'));
+    console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
+    return;
+  }
+
+  const files = await globby(['**/*.js', '**/*.ts', '**/*.py', '**/*.java', '**/*.jsx', '**/*.tsx'], { gitignore: true });
+
+  if (files.length === 0) {
+    console.log(chalk.yellow('No code files found to scan.'));
+    return;
+  }
+
+  for (const file of files) {
+    const code = fs.readFileSync(file, 'utf-8');
+    console.log(chalk.blue(`\n📂 Analyzing: ${file}`));
+
+    const systemPrompt = `You are a helpful programming assistant. For each file, provide a health report:
+- Code quality: (High/Medium/Low)
+- Bugs found: (List key bugs or say "None")
+- Performance issues: (List issues or say "None")
+- Refactoring opportunities: (List or say "None")
+- Security concerns: (List or say "None")
+Format exactly like:
+HEALTH REPORT:
+<Report here>
+No markdown or styling.`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Analyze this code for health issues:\n${code}` }
+      ],
+      model: "llama3-8b-8192",
+      temperature: 0.3,
+      max_tokens: 500
+    });
+
+    const report = completion.choices[0]?.message?.content;
+    if (report) {
+      console.log(chalk.white(report));
+    } else {
+      console.log(chalk.yellow('No report generated.'));
+    }
+  }
+}
+
 async function analyzeFile(filePath, options = {}) {
   try {
     const code = fs.readFileSync(filePath, 'utf-8');
@@ -627,6 +687,14 @@ program
   .action(async (file) => {
     await generateRefactorSuggestions(file)
   })
+
+  program
+  .command('health-scan')
+  .description('Scan the entire codebase for health issues (Premium feature)')
+  .action(async () => {
+    await scanHealth();
+  });
+
 
 program
   .command('config')
