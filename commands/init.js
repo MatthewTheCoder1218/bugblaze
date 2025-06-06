@@ -6,19 +6,16 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const configPath = path.join(os.homedir(), 'bugblaze.config.js');
+const configPath = path.join(process.cwd(), '.bugblazerc.json');
 
-function createDefaultConfig() {
-  const defaultContent = `module.exports = {\n  apiKey: '' // Add your GROQ API key here\n};\n`;
-  fs.writeFileSync(configPath, defaultContent, 'utf-8');
-}
+// Config creation handled elsewhere
 
 function readConfig() {
   try {
-    delete require.cache[require.resolve(configPath)];
-    const config = require(configPath);
-    return config;
-  } catch {
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(configContent);
+    return parsed;
+  } catch (error) {
     return null;
   }
 }
@@ -31,18 +28,15 @@ figlet('Welcome to BugBlaze!', (err, data) => {
   console.log(chalk.green(data));
 
   if (!fs.existsSync(configPath)) {
-    console.log(chalk.yellow('\nNo configuration found, creating default config file...'));
-    createDefaultConfig();
-    console.log(chalk.green(`✔ Created default config at ${configPath}`));
-    console.log(chalk.yellow('\n💡 Please set your GROQ API key using this command:'));
+    console.log(chalk.red('\n❌ Configuration file not found!'));
+    console.log(chalk.yellow('💡 Set your GROQ API key using:'));
     console.log(chalk.cyan('   bugblaze config set apikey <your-api-key>'));
-    console.log(chalk.yellow('\nAlternatively, you can edit the config file manually.'));
-    process.exit(0);
+    process.exit(1);
   }
 
   const config = readConfig();
 
-  if (!config || !config.apiKey) {
+  if (!config || !config.apikey) {
     console.log(chalk.red('\n❌ API key not found in config!'));
     console.log(chalk.yellow('💡 Set your GROQ API key using:'));
     console.log(chalk.cyan('   bugblaze config set apikey <your-api-key>'));
@@ -53,10 +47,16 @@ figlet('Welcome to BugBlaze!', (err, data) => {
   console.log(chalk.blue('\nYou are ready to use BugBlaze CLI!'));
 
   // You can list available commands here if you want:
-  console.log(chalk.yellow('\n📚 Available commands:'));
+  console.log(chalk.yellow('\n📚 Available commands for free:'));
   console.log(chalk.cyan('  bugblaze analyze <file-path>    Analyze code for issues'));
   console.log(chalk.cyan('  bugblaze fun <file-path>        Get AI explanations for errors'));
-  console.log(chalk.cyan('  bugblaze config set apikey <key>  Set your API key'));
+
+  console.log(chalk.yellow('\n💎 Available commands for PRO:'));
+  console.log(chalk.cyan('  bugblaze generate-tests <file>  Generate tests for code'));
+  console.log(chalk.cyan('  bugblaze generate-docs <file>  Generate documentation for code'));
+  console.log(chalk.cyan('  bugblaze generate-refactor <file>  Generate refactoring suggestions'));
+  console.log(chalk.cyan('  bugblaze health-scan <file>  Perform a health scan on codebase'));
+  console.log(chalk.cyan('  bugblaze mentor <file>  Get AI mentorship for code issues'));
 
   process.exit(0);
 });

@@ -404,6 +404,64 @@ async function generateRefactorSuggestions(filePath) {
   }
 }
 
+async function mentorMode(filePath) {
+  try {
+    const code = fs.readFileSync(filePath, 'utf-8');
+    console.log(chalk.cyan('🎓 Entering mentor mode...'));
+    const premiumStatus = await checkAndUpdatePremiumStatus();
+
+    const groq = getGroqClient();
+    if (!groq) {
+      console.log(chalk.red('❌ API key not found.'));
+      console.log(chalk.yellow('Please set your API key using:'));
+      console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
+      return;
+    }
+    const systemPrompt = premiumStatus.isPremium
+      ? "You are a helpful programming mentor. Format your response exactly like this without any markdown:\n" +
+        "\n<detailed mentoring in the correct format line by line in a friendly manner>\n\n" +
+        "Do not use any special formatting, markdown, or code blocks."
+      : "This feature is only available for premium users. Please upgrade to access mentor mode.";
+
+  const maxTokens = premiumStatus.isPremium ? 500 : 150;
+  if (!premiumStatus.isPremium) {
+    console.log(chalk.yellow('💎 Mentor mode is a premium feature.'));
+    console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
+    return;
+  }
+
+  const completion = await groq.chat.completions.create({
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt
+      },
+      {
+        role: "user",
+        content: `Mentor me on this code:
+          ${code}
+          ${premiumStatus.isPremium ? 'Provide detailed mentoring for this code line by line in a friendly manner' : 'This feature is for premium users only'}
+        `
+      }
+    ],
+    model: "llama3-8b-8192",
+    temperature: 0.3,
+    max_tokens: maxTokens
+  });
+
+  const mentoring = completion.choices[0]?.message?.content;
+  if (mentoring) {
+    console.log(chalk.cyan('\n🎓 Mentor Mode:'));
+    console.log(chalk.white(mentoring));
+  } else {
+    console.log(chalk.yellow('No mentoring provided.'));
+  }
+  } catch (err) {
+    console.log(chalk.red('\n❌ Mentor mode failed:'));
+    console.log(chalk.yellow(err.message));
+  }
+}
+
 async function scanHealth() {
   console.log(chalk.cyan('🔍 Scanning codebase for health issues...'));
 
@@ -456,12 +514,148 @@ No markdown or styling.`;
 
     const report = completion.choices[0]?.message?.content;
     if (report) {
+      console.log(chalk.cyan('🔍 Scanned codebase for health issues'));
       console.log(chalk.white(report));
     } else {
       console.log(chalk.yellow('No report generated.'));
     }
   }
 }
+
+async function generateCodebase(projectDescription) {
+  try {
+    console.log(chalk.cyan('🏗️ Generating codebase structure...'));
+    
+    // Check premium status first
+    const premiumStatus = await checkAndUpdatePremiumStatus();
+    
+    // Then get Groq client
+    const groq = getGroqClient();
+    if (!groq) {
+      console.log(chalk.red('❌ API key not found.'));
+      console.log(chalk.yellow('Please set your API key using:'));
+      console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
+      return;
+    }
+
+    if (!premiumStatus.isPremium) {
+      console.log(chalk.yellow('💎 Codebase generation is a premium feature.'));
+      console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
+      return;
+    }
+
+    const systemPrompt = 
+      "You are a helpful programming assistant that generates project structures. Format response as:\n" +
+      "PROJECT_STRUCTURE:\n" +
+      "folder_name/\n" +
+      "  - file1.ext\n" +
+      "  - file2.ext\n" +
+      "  folder2/\n" +
+      "    - file3.ext\n\n" +
+      "FILE_CONTENTS:\n" +
+      "// file1.ext\n" +
+      "[content]\n\n" +
+      "// file2.ext\n" +
+      "[content]\n\n" +
+      "Include package.json, README.md, and basic configuration files.";
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Generate a complete codebase structure and basic file contents for this project:
+            ${projectDescription}
+            Include:
+            - Project structure
+            - Package.json with dependencies
+            - README.md
+            - Basic implementation files
+            - Configuration files
+            - Test setup`
+        }
+      ],
+      model: "llama3-8b-8192",
+      temperature: 0.3,
+      max_tokens: 2000
+    });
+
+    const generated = completion.choices[0]?.message?.content;
+    if (!generated) {
+      console.log(chalk.yellow('No codebase generated.'));
+      return;
+    }
+
+    // Parse the generated content
+    const [structure, ...fileContents] = generated.split('FILE_CONTENTS:');
+    
+    if (!structure || !fileContents.length) {
+      console.log(chalk.red('Invalid generation format.'));
+      return;
+    }
+
+    // Create project structure
+    const projectStructure = structure
+      .split('PROJECT_STRUCTURE:')[1]
+      .trim()
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    // Create directories and files
+    for (const item of projectStructure) {
+      if (item.endsWith('/')) {
+        // It's a directory
+        const dir = item.slice(0, -1);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+          console.log(chalk.green(`📁 Created directory: ${dir}`));
+        }
+      } else {
+        // It's a file
+        const indent = item.search(/\S/);
+        const fileName = item.trim();
+        const dirPath = fileName.split('/').slice(0, -1).join('/');
+        
+        if (dirPath && !fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+
+        // Find corresponding file content
+        const fileContentMatch = fileContents.join('')
+          .split(/\/\/\s*[\w.-]+/)
+          .find(content => content.includes(fileName));
+
+        if (fileContentMatch) {
+          fs.writeFileSync(fileName, fileContentMatch.trim());
+          console.log(chalk.green(`📝 Created file: ${fileName}`));
+        }
+      }
+    }
+
+    console.log(chalk.cyan('\n✨ Codebase generated successfully!'));
+    console.log(chalk.yellow('\nNext steps:'));
+    console.log(chalk.white('1. Review generated files'));
+    console.log(chalk.white('2. Install dependencies: npm install'));
+    console.log(chalk.white('3. Configure any environment variables'));
+    console.log(chalk.white('4. Start development!'));
+
+  } catch (err) {
+    console.log(chalk.red('\n❌ Codebase generation failed:'));
+    console.log(chalk.yellow(err.message));
+  }
+}
+
+// Add new CLI command
+program
+  .command('generate <description>')
+  .description('Generate a new codebase from description (Premium feature)')
+  .action(async (description) => {
+    await generateCodebase(description);
+  });
 
 async function analyzeFile(filePath, options = {}) {
   try {
@@ -688,11 +882,25 @@ program
     await generateRefactorSuggestions(file)
   })
 
-  program
+program
   .command('health-scan')
   .description('Scan the entire codebase for health issues (Premium feature)')
   .action(async () => {
     await scanHealth();
+  });
+
+program
+  .command('mentor <file>')
+  .description('Enter mentor mode to get detailed line-by-line mentoring on your code (Premium feature)')
+  .action(async (file) => {
+    await mentorMode(file);
+  });
+
+program
+  .command('generate <description>')
+  .description('Generate a new codebase from a description (Premium feature)')
+  .action(async (description) => {
+    await generateCodebase(description);
   });
 
 
