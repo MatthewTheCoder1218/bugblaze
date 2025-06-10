@@ -523,13 +523,13 @@ No markdown or styling.`;
 }
 
 async function generateCodebase(projectDescription) {
+  const originalDir = process.cwd();
+
   try {
-    console.log(chalk.cyan('🏗️ Generating codebase structure...'));
-    
-    // Check premium status first
+    console.log(chalk.cyan('🏗️  Generating codebase structure...'));
+
     const premiumStatus = await checkAndUpdatePremiumStatus();
-    
-    // Then get Groq client
+
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
@@ -544,118 +544,136 @@ async function generateCodebase(projectDescription) {
       return;
     }
 
-    const systemPrompt = 
-      "You are a helpful programming assistant that generates project structures. Format response as:\n" +
-      "PROJECT_STRUCTURE:\n" +
-      "folder_name/\n" +
-      "  - file1.ext\n" +
-      "  - file2.ext\n" +
-      "  folder2/\n" +
-      "    - file3.ext\n\n" +
-      "FILE_CONTENTS:\n" +
-      "// file1.ext\n" +
-      "[content]\n\n" +
-      "// file2.ext\n" +
-      "[content]\n\n" +
-      "Include package.json, README.md, and basic configuration files.";
+    const projectName = projectDescription
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
 
+    const projectPath = path.join(originalDir, projectName);
+
+    if (!fs.existsSync(projectPath)) {
+      fs.mkdirSync(projectPath, { recursive: true });
+      console.log(chalk.green(`📁 Created project directory: ${projectName}`));
+    }
+
+    // 🔁 Request structured format from LLM
     const completion = await groq.chat.completions.create({
       messages: [
         {
-          role: "system",
-          content: systemPrompt
+          role: 'system',
+          content: `You are a senior developer that generates codebases from user prompts.
+
+- If the user request is simple (like "a file that prints hello world", "a single script", "just a function", or "one file"), generate ONLY a single file with just the code needed. Do NOT create folders, tests, configs, or extra files. Output ONLY the ---CONTENT--- section in this format:
+
+---CONTENT---
+==<filename>==
+<actual file content>
+
+- If the user request is for a full project, web app, API, CLI, or mentions multiple features, folders, or dependencies, generate a complete project structure in three sections as below:
+
+---FOLDERS---
+<list all folders only, e.g. src, public, utils>
+
+---FILES---
+<list all files only, without folder paths. group them under folder names like:
+src:
+  index.js
+  app.js
+utils:
+  helpers.js
+public:
+  index.html
+>
+
+---CONTENT---
+==<folder>/<filename>==
+<actual file content>
+
+==<folder>/<filename>==
+<actual file content>
+
+📌 RULES:
+- NEVER use slashes in the filenames under ---FILES--- (e.g., use "helpers.js", NOT "utils/helpers.js").
+- BUT in the ---CONTENT--- section, ALWAYS use the correct folder and filename with slashes (e.g., ==src/index.js==).
+- You must match each file under ---FILES--- with a content block under ---CONTENT---.
+- Do NOT assume technologies unless clearly implied.
+- Do NOT leave out config files, dependencies, or documentation if relevant.
+- Use correct file extensions based on language/framework used.
+- Never generate the node_modules folder`
         },
         {
-          role: "user",
-          content: `Generate a complete codebase structure and basic file contents for this project:
-            ${projectDescription}
-            Include:
-            - Project structure
-            - Package.json with dependencies
-            - README.md
-            - Basic implementation files
-            - Configuration files
-            - Test setup`
+          role: 'user',
+          content: `Create a complete project structure for: ${projectDescription}
+Include:
+- Appropriate programming language/framework
+- Essential dependencies but with the node_modules folder not included
+- Configuration files
+- Documentation
+- Testing setup
+- Development tooling only if the project requires
+ that for example a big project else make it only one file or the amount of files needed`
         }
       ],
-      model: "llama3-8b-8192",
+      model: 'llama3-8b-8192',
       temperature: 0.3,
       max_tokens: 2000
     });
 
     const generated = completion.choices[0]?.message?.content;
-    if (!generated) {
-      console.log(chalk.yellow('No codebase generated.'));
-      return;
+    if (!generated) throw new Error('No content generated');
+    if (!generated.includes('---FOLDERS---') || !generated.includes('---FILES---') || !generated.includes('---CONTENT---')) {
+      throw new Error('Missing one of ---FOLDERS---, ---FILES---, or ---CONTENT--- sections.');
     }
 
-    // Parse the generated content
-    const [structure, ...fileContents] = generated.split('FILE_CONTENTS:');
-    
-    if (!structure || !fileContents.length) {
-      console.log(chalk.red('Invalid generation format.'));
-      return;
-    }
+    // 🧠 Parse sections
+    const [, foldersSection, filesSection, contentsSection] = generated.split(/---FOLDERS---|---FILES---|---CONTENT---/);
 
-    // Create project structure
-    const projectStructure = structure
-      .split('PROJECT_STRUCTURE:')[1]
-      .trim()
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean);
-
-    // Create directories and files
-    for (const item of projectStructure) {
-      if (item.endsWith('/')) {
-        // It's a directory
-        const dir = item.slice(0, -1);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-          console.log(chalk.green(`📁 Created directory: ${dir}`));
-        }
-      } else {
-        // It's a file
-        const indent = item.search(/\S/);
-        const fileName = item.trim();
-        const dirPath = fileName.split('/').slice(0, -1).join('/');
-        
-        if (dirPath && !fs.existsSync(dirPath)) {
-          fs.mkdirSync(dirPath, { recursive: true });
-        }
-
-        // Find corresponding file content
-        const fileContentMatch = fileContents.join('')
-          .split(/\/\/\s*[\w.-]+/)
-          .find(content => content.includes(fileName));
-
-        if (fileContentMatch) {
-          fs.writeFileSync(fileName, fileContentMatch.trim());
-          console.log(chalk.green(`📝 Created file: ${fileName}`));
-        }
+    // ✨ Create folders
+// ✨ Create folders
+    const folders = foldersSection.trim().split('\n').filter(Boolean);
+    for (const folder of folders) {
+      // Only create if it does NOT look like a file (no dot in last segment)
+      const trimmed = folder.trim();
+      if (!path.basename(trimmed).includes('.')) {
+        const fullFolderPath = path.join(projectPath, trimmed);
+        fs.mkdirSync(fullFolderPath, { recursive: true });
+        console.log(chalk.green(`📁 Created folder: ${trimmed}`));
       }
     }
 
+  // ✍️ Write content to files
+  const fileRegex = /^==(.+?)==\s*\r?\n([\s\S]*?)(?=^==|\Z)/gm;
+  let match;
+  let wroteAny = false;
+  while ((match = fileRegex.exec(contentsSection)) !== null) {
+    const [, filePath, content] = match;
+    const fullPath = path.join(projectPath, filePath.trim());
+    const parentDir = path.dirname(fullPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(fullPath, content.trim() + '\n', 'utf8');
+    console.log(chalk.green(`📝 Wrote content to: ${filePath.trim()}`));
+    wroteAny = true;
+  }
+  if (!wroteAny) {
+    console.log(chalk.red('❌ No files were written. Regex did not match any blocks.'));
+  }
+
     console.log(chalk.cyan('\n✨ Codebase generated successfully!'));
     console.log(chalk.yellow('\nNext steps:'));
-    console.log(chalk.white('1. Review generated files'));
-    console.log(chalk.white('2. Install dependencies: npm install'));
-    console.log(chalk.white('3. Configure any environment variables'));
-    console.log(chalk.white('4. Start development!'));
+    console.log(chalk.white(`1. cd ${projectName}`));
+    console.log(chalk.white('2. npm install'));
+    console.log(chalk.white('3. Review generated files'));
+    console.log(chalk.white('4. Start coding!'));
 
   } catch (err) {
-    console.log(chalk.red('\n❌ Codebase generation failed:'));
+    console.log(chalk.red('\n❌ Error generating codebase:'));
     console.log(chalk.yellow(err.message));
   }
 }
 
-// Add new CLI command
-program
-  .command('generate <description>')
-  .description('Generate a new codebase from description (Premium feature)')
-  .action(async (description) => {
-    await generateCodebase(description);
-  });
 
 async function analyzeFile(filePath, options = {}) {
   try {
@@ -861,26 +879,52 @@ program
     await analyzeCode(file);
   });
 
-program
-  .command('generate-tests <file>')
-  .description('Generate unit tests for your code')
-  .action(async (file) => {
-    await generateUnitTests(file)
-  })
+// Remove both existing generate commands and replace with this:
 
 program
-  .command('generate-docs <file>')
-  .description('Generate detailed documentations for your code')
-  .action(async (file) => {
-    await generateDocumentation(file)
-  })
-
-program
-  .command('generate-refactor <file>')
-  .description('Generate refactor suggestions for your code without hurting the logic')
-  .action(async (file) => {
-    await generateRefactorSuggestions(file)
-  })
+  .command('generate')
+  .description('Generate code and project resources (some features are Premium)')
+  .argument('<type>', 'Type of generation: codebase, tests, docs, refactor')
+  .argument('[input]', 'File path or project description')
+  .action(async (type, input) => {
+    switch (type) {
+      case 'codebase':
+        if (!input) {
+          console.log(chalk.red('❌ Please provide a project description'));
+          return;
+        }
+        await generateCodebase(input);
+        break;
+      case 'tests':
+        if (!input) {
+          console.log(chalk.red('❌ Please provide a file path'));
+          return;
+        }
+        await generateUnitTests(input);
+        break;
+      case 'docs':
+        if (!input) {
+          console.log(chalk.red('❌ Please provide a file path'));
+          return;
+        }
+        await generateDocumentation(input);
+        break;
+      case 'refactor':
+        if (!input) {
+          console.log(chalk.red('❌ Please provide a file path'));
+          return;
+        }
+        await generateRefactorSuggestions(input);
+        break;
+      default:
+        console.log(chalk.red('❌ Invalid generation type'));
+        console.log(chalk.yellow('Available types:'));
+        console.log(chalk.white('- codebase: Generate new project structure'));
+        console.log(chalk.white('- tests: Generate unit tests'));
+        console.log(chalk.white('- docs: Generate documentation'));
+        console.log(chalk.white('- refactor: Generate refactor suggestions'));
+    }
+  });
 
 program
   .command('health-scan')
@@ -894,13 +938,6 @@ program
   .description('Enter mentor mode to get detailed line-by-line mentoring on your code (Premium feature)')
   .action(async (file) => {
     await mentorMode(file);
-  });
-
-program
-  .command('generate <description>')
-  .description('Generate a new codebase from a description (Premium feature)')
-  .action(async (description) => {
-    await generateCodebase(description);
   });
 
 
