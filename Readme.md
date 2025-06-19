@@ -1,4 +1,3 @@
-
 # BugBlaze
 
 **AI-Powered Code Debugging & Analysis for Developers**
@@ -7,21 +6,16 @@ BugBlaze is a blazing-fast command-line tool that helps you **find, understand, 
 
 ---
 
-## ✨ Features
+## ✨ Features (Beta)
 
-### Free Tier
-- ✅ **50 AI Analyses/Month** – Enough to get a taste of the magic
-- ✅ **Basic Mentor Mode** – 10 sessions/month to explain code in plain English
-- ✅ **Single AI Provider** – Powered by Groq (fast and free)
-- ✅ **Community Access** – Learn from other devs, share insights
-- ❌ No advanced AI features, team tools, or code generation
-
-### Pro Tier – $19/month (Gumroad License Key)
-- ✅ **Unlimited AI Analyses** – No limits, ever
-- ✅ **Advanced Mentor Mode** – Context-aware, interactive guidance
+- ✅ **Unlimited AI Analyses** – No limits during beta!
+- ✅ **Mentor Mode** – Context-aware, interactive guidance
 - ✅ **Smart Code Generation** – Tests, docs, refactors on demand
 - ✅ **Proactive Health Scan** – Analyze your entire codebase for complexity, debt, and vulnerabilities
 - ✅ **Refactor Suggestions** – Clear, actionable fixes with step-by-step improvements
+- ✅ **Community Access** – Learn from other devs, share insights
+
+> **Note:** All features are free and unlocked during the beta period. No license key required!
 
 ---
 
@@ -35,18 +29,13 @@ npm install -g bugblaze
 
 ---
 
-## 🔑 Set Up Your API & License
+## 🔑 Set Up Your API Key
 
-BugBlaze uses AI models to analyze your code. Here's how to configure it:
-
-1️⃣ Get an API key from [Groq](https://console.groq.com) or another supported provider  
-2️⃣ (Optional) Get your **Pro license** from [Gumroad](https://littleprince1218.gumroad.com/l/wgrtjq)
-
-Then configure:
+BugBlaze uses AI models to analyze your code.  
+Get an API key from [Groq](https://console.groq.com) or another supported provider, then configure:
 
 ```bash
 bugblaze config set apikey <your-api-key>
-bugblaze config set licensekey <your-gumroad-license-key>   # Optional for Pro features
 ```
 
 ---
@@ -62,14 +51,23 @@ bugblaze analyze path/to/your/file.js
 # Explain errors with AI
 bugblaze fun path/to/your/file.js --explain
 
-# Get refactor suggestions (Pro)
-bugblaze generate-refactor path/to/your/file.js
+# Generate unit tests
+bugblaze generate tests path/to/your/file.js
 
-# Scan entire project for code health issues (Pro)
+# Generate documentation
+bugblaze generate docs path/to/your/file.js
+
+# Get refactor suggestions
+bugblaze generate refactor path/to/your/file.js
+
+# Scan entire project for code health issues
 bugblaze health-scan
 
-# Mentor mode: plain-English code walkthroughs (Pro)
+# Mentor mode: plain-English code walkthroughs
 bugblaze mentor path/to/your/file.js
+
+# Interactive AI chat (can answer about your files!)
+bugblaze chat
 ```
 
 ---
@@ -84,20 +82,11 @@ bugblaze mentor path/to/your/file.js
 
 ---
 
-## 🌐 Community
-
-Join the BugBlaze community:  
-- 💬 Share your code  
-- 🔍 Get feedback  
-- 🎓 Learn together  
-
----
-
 ## 📣 Feedback & Support
 
-Got questions or ideas?  
-- 💌 Reach out: [Your Email/Contact]  
-- 🛠️ Submit issues: [GitHub Link]  
+Got questions or ideas?
+- 🌐 [Website](https://bugblaze.vercel.app)
+- 🛠️ [GitHub Issues](https://github.com/MatthewTheCoder1218/bugblaze)
 
 ---
 

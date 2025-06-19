@@ -47,16 +47,17 @@ figlet('Welcome to BugBlaze!', (err, data) => {
   console.log(chalk.blue('\nYou are ready to use BugBlaze CLI!'));
 
   // You can list available commands here if you want:
-  console.log(chalk.yellow('\n📚 Available commands for free:'));
-  console.log(chalk.cyan('  bugblaze analyze <file-path>    Analyze code for issues'));
-  console.log(chalk.cyan('  bugblaze fun <file-path>        Get AI explanations for errors'));
-
-  console.log(chalk.yellow('\n💎 Available commands for PRO:'));
-  console.log(chalk.cyan('  bugblaze generate-tests <file>  Generate tests for code'));
-  console.log(chalk.cyan('  bugblaze generate-docs <file>  Generate documentation for code'));
-  console.log(chalk.cyan('  bugblaze generate-refactor <file>  Generate refactoring suggestions'));
-  console.log(chalk.cyan('  bugblaze health-scan <file>  Perform a health scan on codebase'));
-  console.log(chalk.cyan('  bugblaze mentor <file>  Get AI mentorship for code issues'));
+  console.log(chalk.yellow('\n📚 Available commands:'));
+  console.log(chalk.cyan('  bugblaze analyze <file-path>         Analyze code for issues'));
+  console.log(chalk.cyan('  bugblaze fun <file-path>             Get AI explanations for errors'));
+  console.log(chalk.cyan('  bugblaze generate codebase <desc>    Generate a new project structure'));
+  console.log(chalk.cyan('  bugblaze generate tests <file>       Generate unit tests for code'));
+  console.log(chalk.cyan('  bugblaze generate docs <file>        Generate documentation for code'));
+  console.log(chalk.cyan('  bugblaze generate refactor <file>    Generate refactoring suggestions'));
+  console.log(chalk.cyan('  bugblaze health-scan                 Perform a health scan on codebase'));
+  console.log(chalk.cyan('  bugblaze mentor <file>               Get AI mentorship for code issues'));
+  console.log(chalk.cyan('  bugblaze chat                        Start an interactive chat with the AI assistant'));
+  console.log(chalk.cyan('  bugblaze config                      Configure BugBlaze settings'));
 
   process.exit(0);
 });

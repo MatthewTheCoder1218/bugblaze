@@ -13,6 +13,7 @@ import os from 'os';
 import { handleConfigCommand } from './commands/config.js';
 import { checkIfPremium } from './utils/premium.js';
 import { globby } from 'globby';
+import readline from 'readline';
 
 const program = new Command();
 const configPath = path.join(process.cwd(), '.bugblazerc.json'); // Fixed to match config.js
@@ -45,7 +46,7 @@ function getConfig() {
   }
 }
 
-// Check premium status and update config
+// Check premium status and update config (kept for after beta, but not used in beta)
 async function checkAndUpdatePremiumStatus() {
   const config = getConfig();
   if (!config) return { isPremium: false };
@@ -58,11 +59,9 @@ async function checkAndUpdatePremiumStatus() {
   try {
     // Check with your backend
     const premiumResult = await checkIfPremium(config.licensekey);
-    
     // Update config with premium status
     config.isPremium = premiumResult.isPremium;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    
     return premiumResult;
   } catch (error) {
     console.log(chalk.yellow('⚠️ Could not verify premium status, using free tier'));
@@ -84,11 +83,10 @@ function detectLanguage(filePath) {
 async function explainError(errorMessage, code) {
   try {
     console.log(chalk.cyan('🧠 Analyzing error...'));
-    
-    // Check premium status first
-    const premiumStatus = await checkAndUpdatePremiumStatus();
-    
-    // Then get Groq client
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
+
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
@@ -97,17 +95,15 @@ async function explainError(errorMessage, code) {
       return;
     }
 
-    const systemPrompt = premiumStatus.isPremium 
-      ? "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
-        "ERROR:\n<brief error description>\n\n" +
-        "CAUSE:\n<main reason>\n\n" +
-        "FIX:\n<numbered steps>\n\n" +
-        "PREVENTION:\n<quick tip>\n\n" +
-        "EXAMPLE:\n<code example>\n\n" +
-        "Do not use any special formatting, markdown, or code blocks."
-      : "You are a programming assistant. Briefly explain the error's main cause and provide a basic fix suggestion in 2-3 sentences. End with '.'";
+    const systemPrompt = "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
+      "ERROR:\n<brief error description>\n\n" +
+      "CAUSE:\n<main reason>\n\n" +
+      "FIX:\n<numbered steps>\n\n" +
+      "PREVENTION:\n<quick tip>\n\n" +
+      "EXAMPLE:\n<code example>\n\n" +
+      "Do not use any special formatting, markdown, or code blocks.";
 
-    const maxTokens = premiumStatus.isPremium ? 500 : 100;
+    const maxTokens = 500;
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -123,7 +119,7 @@ Error: ${errorMessage}
 Code:
 ${code}
 
-${premiumStatus.isPremium ? 'Provide comprehensive analysis and multiple solutions.' : 'Provide only the most critical fix.'}`
+Provide comprehensive analysis and multiple solutions.`
         }
       ],
       model: "llama3-8b-8192",
@@ -135,11 +131,6 @@ ${premiumStatus.isPremium ? 'Provide comprehensive analysis and multiple solutio
     if (explanation) {
       console.log(chalk.cyan('\n📚 AI Explanation:'));
       console.log(chalk.white(explanation));
-
-      if (!premiumStatus.isPremium) {
-        console.log(chalk.yellow('\n💎 Want deeper code analysis?'));
-        console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-      }
     }
   } catch (err) {
     console.log(chalk.red('\n❌ AI Explanation failed:'));
@@ -152,11 +143,10 @@ async function analyzeCode(filePath) {
     const code = fs.readFileSync(filePath, 'utf-8');
 
     console.log(chalk.cyan('🧠 Analyzing code for logical or runtime issues...'));
-    
-    // Check premium status first
-    const premiumStatus = await checkAndUpdatePremiumStatus();
-    
-    // Then get Groq client
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
+
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
@@ -165,17 +155,15 @@ async function analyzeCode(filePath) {
       return;
     }
 
-    const systemPrompt = premiumStatus.isPremium 
-      ? "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
-        "ERROR:\n<brief error description>\n\n" +
-        "CAUSE:\n<main reason>\n\n" +
-        "FIX:\n<numbered steps>\n\n" +
-        "PREVENTION:\n<quick tip>\n\n" +
-        "EXAMPLE:\n<code example>\n\n" +
-        "Do not use any special formatting, markdown, or code blocks."
-      : "You are a programming assistant. Analyze the code briefly and provide only the most critical issue. Keep it under 2 sentences and end with '.'";
+    const systemPrompt = "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
+      "ERROR:\n<brief error description>\n\n" +
+      "CAUSE:\n<main reason>\n\n" +
+      "FIX:\n<numbered steps>\n\n" +
+      "PREVENTION:\n<quick tip>\n\n" +
+      "EXAMPLE:\n<code example>\n\n" +
+      "Do not use any special formatting, markdown, or code blocks.";
 
-    const maxTokens = premiumStatus.isPremium ? 500 : 150;
+    const maxTokens = 500;
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -191,7 +179,7 @@ File: ${filePath}
 Code:
 ${code}
 
-${premiumStatus.isPremium ? 'Provide a detailed analysis with all issues and improvements.' : 'Identify the most critical issue only.'}`
+Provide a detailed analysis with all issues and improvements.`
         }
       ],
       model: "llama3-8b-8192",
@@ -203,11 +191,6 @@ ${premiumStatus.isPremium ? 'Provide a detailed analysis with all issues and imp
     if (analysis) {
       console.log(chalk.cyan('\n📚 AI Analysis:'));
       console.log(chalk.white(analysis));
-
-      if (!premiumStatus.isPremium) {
-        console.log(chalk.yellow('\n💎 Want deeper code analysis?'));
-        console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-      }
     }
   } catch (err) {
     console.log(chalk.red('\n❌ AI Analysis failed:'));
@@ -220,11 +203,10 @@ async function generateUnitTests(filePath) {
     const code = fs.readFileSync(filePath, 'utf-8');
 
     console.log(chalk.cyan('🧪 Generating unit tests...'));
-    
-    // Check premium status first
-    const premiumStatus = await checkAndUpdatePremiumStatus();
-    
-    // Then get Groq client
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
+
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
@@ -232,34 +214,14 @@ async function generateUnitTests(filePath) {
       console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
       return;
     }
-
-    const systemPrompt = premiumStatus.isPremium 
-      ? "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
-        "TESTS:\n<unit tests in the correct format>\n\n" +
-        "Do not use any special formatting, markdown, or code blocks."
-      : "This feature is only available for premium users. Please upgrade to access unit test generation.";
-
-    const maxTokens = premiumStatus.isPremium ? 500 : 150;
-
-    if (!premiumStatus.isPremium) {
-      console.log(chalk.yellow('💎 Unit test generation is a premium feature.'));
-      console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-      return;
-    }
-
+    const systemPrompt = "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
+      "TESTS:\n<unit tests in the correct format>\n\n" +
+      "Do not use any special formatting, markdown, or code blocks.";
+    const maxTokens = 500;
     const completion = await groq.chat.completions.create({
       messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: `Generate unit tests for this code:
-          ${code}
-
-${premiumStatus.isPremium ? 'Provide a detailed analysis with all tests and what they do' : 'This feature is only available for premium users.'}`
-        }
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Generate unit tests for this code:\n${code}\nProvide a detailed analysis with all tests and what they do` }
       ],
       model: "llama3-8b-8192",
       temperature: 0.3,
@@ -284,11 +246,10 @@ async function generateDocumentation(filePath) {
     const code = fs.readFileSync(filePath, 'utf-8');
 
     console.log(chalk.cyan('📄 Generating documentation...'));
-    
-    // Check premium status first
-    const premiumStatus = await checkAndUpdatePremiumStatus();
-    
-    // Then get Groq client
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
+
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
@@ -297,19 +258,10 @@ async function generateDocumentation(filePath) {
       return;
     }
 
-    const systemPrompt = premiumStatus.isPremium 
-      ? "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
-        "DOCUMENTATION:\n<detailed documentation in the correct format>\n\n" +
-        "Use markdown for readme files."
-      : "This feature is only available for premium users. Please upgrade to access documentation generation.";
-
-    const maxTokens = premiumStatus.isPremium ? 500 : 150;
-
-    if (!premiumStatus.isPremium) {
-      console.log(chalk.yellow('💎 Documentation generation is a premium feature.'));
-      console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-      return;
-    }
+    const systemPrompt = "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
+      "DOCUMENTATION:\n<detailed documentation in the correct format>\n\n" +
+      "Use markdown for readme files.";
+    const maxTokens = 500;
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -321,7 +273,7 @@ async function generateDocumentation(filePath) {
           role: "user",
           content: `Generate documentation for this code:
           ${code}
-          ${premiumStatus.isPremium ? 'Provide a detailed documentation for the code.' : 'This feature is only for premium users.'}`
+          Provide a detailed documentation for the code.`
         }
       ],
       model: "llama3-8b-8192",
@@ -347,7 +299,9 @@ async function generateRefactorSuggestions(filePath) {
     const code = fs.readFileSync(filePath, 'utf-8');
 
     console.log(chalk.cyan('⚡ Generating refactor suggestions...'));
-    const premiumStatus = await checkAndUpdatePremiumStatus();
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
 
     const groq = getGroqClient();
     if (!groq) {
@@ -357,45 +311,36 @@ async function generateRefactorSuggestions(filePath) {
       return;
     }
 
-    const systemPrompt = premiumStatus.isPremium
-      ? "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
-        "CODE PROBLEMS:\n<detailed explanation in the correct format>\n\n" +
-        "WHAT TO FIX:\n<detailed ways on what to fix in the code in the correct format>\n\n" +
-        "Do not use any special formatting, markdown, or code blocks."
-      : "This feature is only available for premium users. Please upgrade to access refactor suggestions.";
+    const systemPrompt = "You are a helpful programming assistant. Format your response exactly like this without any markdown:\n" +
+      "CODE PROBLEMS:\n<detailed explanation in the correct format>\n\n" +
+      "WHAT TO FIX:\n<detailed ways on what to fix in the code in the correct format>\n\n" +
+      "Do not use any special formatting, markdown, or code blocks.";
+    const maxTokens = 500;
 
-      const maxTokens = premiumStatus.isPremium ? 500 : 150;
-
-      if (!premiumStatus.isPremium) {
-      console.log(chalk.yellow('💎 Documentation generation is a premium feature.'));
-      console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-      return;
-    }
-
-      const completion = await groq.chat.completions.create({
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: `Generate refactor suggestions for this code:
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Generate refactor suggestions for this code:
               ${code}
-              ${premiumStatus.isPremium ? 'Provide detailed refactor suggestions for this code without hurting the logic' : 'This feature is for premium users only'}
+              Provide detailed refactor suggestions for this code without hurting the logic
             `
-          }
-        ],
-        model: "llama3-8b-8192",
-        temperature: 0.3,
-        max_tokens: maxTokens
-      });
+        }
+      ],
+      model: "llama3-8b-8192",
+      temperature: 0.3,
+      max_tokens: maxTokens
+    });
 
-      const suggestions = completion.choices[0]?.message?.content;
-      if (suggestions) {
-        console.log(chalk.cyan('\n⚡ Refactor Suggestions:'))
-        console.log(chalk.white(suggestions))
-      } else {
+    const suggestions = completion.choices[0]?.message?.content;
+    if (suggestions) {
+      console.log(chalk.cyan('\n⚡ Refactor Suggestions:'))
+      console.log(chalk.white(suggestions))
+    } else {
       console.log(chalk.yellow('No docs generated'));
     }
   } catch (err) {
@@ -408,7 +353,9 @@ async function mentorMode(filePath) {
   try {
     const code = fs.readFileSync(filePath, 'utf-8');
     console.log(chalk.cyan('🎓 Entering mentor mode...'));
-    const premiumStatus = await checkAndUpdatePremiumStatus();
+
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
 
     const groq = getGroqClient();
     if (!groq) {
@@ -417,45 +364,38 @@ async function mentorMode(filePath) {
       console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
       return;
     }
-    const systemPrompt = premiumStatus.isPremium
-      ? "You are a helpful programming mentor. Format your response exactly like this without any markdown:\n" +
-        "\n<detailed mentoring in the correct format line by line in a friendly manner>\n\n" +
-        "Do not use any special formatting, markdown, or code blocks."
-      : "This feature is only available for premium users. Please upgrade to access mentor mode.";
+    const systemPrompt = "You are a helpful programming mentor. Format your response exactly like this without any markdown:\n" +
+      "\n<detailed mentoring in the correct format line by line in a friendly manner>\n\n" +
+      "Do not use any special formatting, markdown, or code blocks.";
 
-  const maxTokens = premiumStatus.isPremium ? 500 : 150;
-  if (!premiumStatus.isPremium) {
-    console.log(chalk.yellow('💎 Mentor mode is a premium feature.'));
-    console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
-    return;
-  }
+    const maxTokens = 500;
 
-  const completion = await groq.chat.completions.create({
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: "user",
-        content: `Mentor me on this code:
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Mentor me on this code:
           ${code}
-          ${premiumStatus.isPremium ? 'Provide detailed mentoring for this code line by line in a friendly manner' : 'This feature is for premium users only'}
+          Provide detailed mentoring for this code line by line in a friendly manner
         `
-      }
-    ],
-    model: "llama3-8b-8192",
-    temperature: 0.3,
-    max_tokens: maxTokens
-  });
+        }
+      ],
+      model: "llama3-8b-8192",
+      temperature: 0.3,
+      max_tokens: maxTokens
+    });
 
-  const mentoring = completion.choices[0]?.message?.content;
-  if (mentoring) {
-    console.log(chalk.cyan('\n🎓 Mentor Mode:'));
-    console.log(chalk.white(mentoring));
-  } else {
-    console.log(chalk.yellow('No mentoring provided.'));
-  }
+    const mentoring = completion.choices[0]?.message?.content;
+    if (mentoring) {
+      console.log(chalk.cyan('\n🎓 Mentor Mode:'));
+      console.log(chalk.white(mentoring));
+    } else {
+      console.log(chalk.yellow('No mentoring provided.'));
+    }
   } catch (err) {
     console.log(chalk.red('\n❌ Mentor mode failed:'));
     console.log(chalk.yellow(err.message));
@@ -465,18 +405,14 @@ async function mentorMode(filePath) {
 async function scanHealth() {
   console.log(chalk.cyan('🔍 Scanning codebase for health issues...'));
 
-  const premiumStatus = await checkAndUpdatePremiumStatus();
+  // For beta: always treat as premium
+  const premiumStatus = { isPremium: true };
+
   const groq = getGroqClient();
   if (!groq) {
     console.log(chalk.red('❌ API key not found.'));
     console.log(chalk.yellow('Please set your API key using:'));
     console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
-    return;
-  }
-
-  if (!premiumStatus.isPremium) {
-    console.log(chalk.yellow('💎 Code health scanning is a premium feature.'));
-    console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
     return;
   }
 
@@ -528,19 +464,14 @@ async function generateCodebase(projectDescription) {
   try {
     console.log(chalk.cyan('🏗️  Generating codebase structure...'));
 
-    const premiumStatus = await checkAndUpdatePremiumStatus();
+    // For beta: always treat as premium
+    const premiumStatus = { isPremium: true };
 
     const groq = getGroqClient();
     if (!groq) {
       console.log(chalk.red('❌ API key not found.'));
       console.log(chalk.yellow('Please set your API key using:'));
       console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
-      return;
-    }
-
-    if (!premiumStatus.isPremium) {
-      console.log(chalk.yellow('💎 Codebase generation is a premium feature.'));
-      console.log(chalk.cyan('Get premium license and use: bugblaze config set licensekey <key>'));
       return;
     }
 
@@ -630,7 +561,6 @@ Include:
     const [, foldersSection, filesSection, contentsSection] = generated.split(/---FOLDERS---|---FILES---|---CONTENT---/);
 
     // ✨ Create folders
-// ✨ Create folders
     const folders = foldersSection.trim().split('\n').filter(Boolean);
     for (const folder of folders) {
       // Only create if it does NOT look like a file (no dot in last segment)
@@ -642,24 +572,24 @@ Include:
       }
     }
 
-  // ✍️ Write content to files
-  const fileRegex = /^==(.+?)==\s*\r?\n([\s\S]*?)(?=^==|\Z)/gm;
-  let match;
-  let wroteAny = false;
-  while ((match = fileRegex.exec(contentsSection)) !== null) {
-    const [, filePath, content] = match;
-    const fullPath = path.join(projectPath, filePath.trim());
-    const parentDir = path.dirname(fullPath);
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
+    // ✍️ Write content to files
+    const fileRegex = /^==(.+?)==\s*\r?\n([\s\S]*?)(?=^==|\Z)/gm;
+    let match;
+    let wroteAny = false;
+    while ((match = fileRegex.exec(contentsSection)) !== null) {
+      const [, filePath, content] = match;
+      const fullPath = path.join(projectPath, filePath.trim());
+      const parentDir = path.dirname(fullPath);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+      fs.writeFileSync(fullPath, content.trim() + '\n', 'utf8');
+      console.log(chalk.green(`📝 Wrote content to: ${filePath.trim()}`));
+      wroteAny = true;
     }
-    fs.writeFileSync(fullPath, content.trim() + '\n', 'utf8');
-    console.log(chalk.green(`📝 Wrote content to: ${filePath.trim()}`));
-    wroteAny = true;
-  }
-  if (!wroteAny) {
-    console.log(chalk.red('❌ No files were written. Regex did not match any blocks.'));
-  }
+    if (!wroteAny) {
+      console.log(chalk.red('❌ No files were written. Regex did not match any blocks.'));
+    }
 
     console.log(chalk.cyan('\n✨ Codebase generated successfully!'));
     console.log(chalk.yellow('\nNext steps:'));
@@ -674,6 +604,92 @@ Include:
   }
 }
 
+async function bugblazeChat() {
+  const groq = getGroqClient();
+  if (!groq) {
+    console.log(chalk.red('❌ API key not found.'));
+    console.log(chalk.yellow('Please set your API key using:'));
+    console.log(chalk.cyan('bugblaze config set apikey <your-api-key>'));
+    return;
+  }
+
+  // Get all files in the project (relative paths)
+  const allFiles = await globby(['**/*.*'], { gitignore: true, dot: true });
+
+  console.log(chalk.cyan('💬 You are now in chat mode. Type your message and press Enter. Type "exit" to leave.'));
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: chalk.green('You: ')
+  });
+
+  let messages = [
+    {
+      role: 'system',
+      content: 'You are a helpful programming assistant. If the user asks about a file in the project, answer using the file content provided. Otherwise, answer normally. Keep responses concise unless asked for detail.'
+    }
+  ];
+
+  rl.prompt();
+
+  rl.on('line', async (line) => {
+    const input = line.trim();
+    if (input.toLowerCase() === 'exit') {
+      rl.close();
+      return;
+    }
+
+    // Check if the input references a file in the project
+    let fileContext = '';
+    for (const file of allFiles) {
+      if (
+        input.includes(file) ||
+        input.includes(file.replace(/\\/g, '/')) ||
+        input.toLowerCase().includes(file.toLowerCase()) ||
+        input.toLowerCase().includes(file.split('/').pop().toLowerCase())
+      ) {
+        try {
+          const fileContent = fs.readFileSync(file, 'utf-8');
+          fileContext = `\n\n[File: ${file}]\n${fileContent}\n\n`;
+          break;
+        } catch (e) {
+          // Ignore read errors
+        }
+      }
+    }
+
+    let userPrompt = input;
+    if (fileContext) {
+      userPrompt += `\n\nHere is the content of the file you asked about:${fileContext}`;
+    }
+
+    messages.push({ role: 'user', content: userPrompt });
+    try {
+      const completion = await groq.chat.completions.create({
+        messages,
+        model: 'llama3-8b-8192',
+        temperature: 0.3,
+        max_tokens: 500
+      });
+      const aiReply = completion.choices[0]?.message?.content?.trim();
+      if (aiReply) {
+        console.log(chalk.cyan('\nAI:'), aiReply, '\n');
+        messages.push({ role: 'assistant', content: aiReply });
+      } else {
+        console.log(chalk.yellow('No response from AI.'));
+      }
+    } catch (err) {
+      console.log(chalk.red('❌ Error communicating with AI:'), err.message);
+    }
+    rl.prompt();
+  });
+
+  rl.on('close', () => {
+    console.log(chalk.cyan('👋 Exiting chat mode.'));
+    process.exit(0);
+  });
+}
 
 async function analyzeFile(filePath, options = {}) {
   try {
@@ -691,7 +707,7 @@ async function analyzeFile(filePath, options = {}) {
         diagnostics = await getJSDiagnostics(code, filePath);
         break;
       case 'typescript':
-        case 'tsx':
+      case 'tsx':
         diagnostics = getTSDiagnostics(code, filePath);
         break;
       case 'python':
@@ -879,11 +895,9 @@ program
     await analyzeCode(file);
   });
 
-// Remove both existing generate commands and replace with this:
-
 program
   .command('generate')
-  .description('Generate code and project resources (some features are Premium)')
+  .description('Generate code and project resources')
   .argument('<type>', 'Type of generation: codebase, tests, docs, refactor')
   .argument('[input]', 'File path or project description')
   .action(async (type, input) => {
@@ -928,18 +942,24 @@ program
 
 program
   .command('health-scan')
-  .description('Scan the entire codebase for health issues (Premium feature)')
+  .description('Scan the entire codebase for health issues')
   .action(async () => {
     await scanHealth();
   });
 
 program
   .command('mentor <file>')
-  .description('Enter mentor mode to get detailed line-by-line mentoring on your code (Premium feature)')
+  .description('Enter mentor mode to get detailed line-by-line mentoring on your code')
   .action(async (file) => {
     await mentorMode(file);
   });
 
+program
+  .command('chat')
+  .description('Start an interactive chat with the AI assistant')
+  .action(async () => {
+    await bugblazeChat();
+  });
 
 program
   .command('config')
