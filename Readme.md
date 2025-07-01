@@ -87,6 +87,7 @@ bugblaze chat
 Got questions or ideas?
 - 🌐 [Website](https://bugblaze.vercel.app)
 - 🛠️ [GitHub Issues](https://github.com/MatthewTheCoder1218/bugblaze)
+- [Twitter](https://x.com/bugblazedotdev)
 
 ---
 
